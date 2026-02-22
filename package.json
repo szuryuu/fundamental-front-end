@@ -1,0 +1,15 @@
+{
+  "name": "fundamental-front-end",
+  "version": "1.0.0",
+  "description": "Automated Code Reviewer Layer 2",
+  "main": "runner.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Szuryuu",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.x.x"
+  }
+}
