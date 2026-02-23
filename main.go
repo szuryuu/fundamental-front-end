@@ -59,9 +59,15 @@ func main() {
 
 	fmt.Println("✅ [PASS] Static validation successful. No prohibited frameworks or 'node_modules' detected.")
 
-	// Step 3: Trigger the Dynamic E2E Testing layer
+	// Step 3: Resolve the actual project root (Handling Nested Zip Folders)
+	actualProjectDir := resolveTargetDirectory(tmpDir)
+	if actualProjectDir != tmpDir {
+		fmt.Printf("📂 [INFO] Nested directory structure detected. Dynamically adjusting root to: %s\n", filepath.Base(actualProjectDir))
+	}
+
+	// Step 4: Trigger the Dynamic E2E Testing layer
 	fmt.Printf("⚙️  [LAYER 2] Handing over to Playwright E2E Runner...\n")
-	runPlaywrightRunner(submissionType, tmpDir)
+	runPlaywrightRunner(submissionType, actualProjectDir)
 }
 
 // getLatestZip scans the default download directory for the most recently modified .zip file
@@ -151,8 +157,8 @@ func extractAndValidateZip(zipPath string, dest string) error {
 			return err
 		}
 
-		// Dynamically analyze package.json during extraction
-		if strings.HasSuffix(f.Name, "package.json") && !strings.Contains(f.Name, "/") {
+		// Dynamically analyze package.json during extraction (removed root path restriction to support nested zips)
+		if strings.HasSuffix(f.Name, "package.json") {
 			content, _ := io.ReadAll(rc)
 			if err := checkFrameworks(content); err != nil {
 				outFile.Close()
@@ -172,7 +178,7 @@ func extractAndValidateZip(zipPath string, dest string) error {
 	}
 
 	if !hasHTML {
-		return fmt.Errorf("no HTML files found in the project root")
+		return fmt.Errorf("no HTML files found anywhere in the project")
 	}
 	return nil
 }
@@ -181,7 +187,8 @@ func extractAndValidateZip(zipPath string, dest string) error {
 func checkFrameworks(content []byte) error {
 	var pkg PackageJSON
 	if err := json.Unmarshal(content, &pkg); err != nil {
-		return fmt.Errorf("failed to parse package.json")
+		// Ignore parse errors as some students write invalid JSON
+		return nil 
 	}
 
 	for _, framework := range forbiddenFrameworks {
@@ -193,6 +200,36 @@ func checkFrameworks(content []byte) error {
 		}
 	}
 	return nil
+}
+
+// resolveTargetDirectory recursively scans the temp directory to find the actual project root
+func resolveTargetDirectory(baseDir string) string {
+	var projectRoot = baseDir
+	var shortestPathLength = 9999
+
+	err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		
+		// We define the project root as the highest-level directory containing package.json OR index.html
+		if !info.IsDir() && (info.Name() == "package.json" || info.Name() == "index.html") {
+			dir := filepath.Dir(path)
+			depth := len(strings.Split(dir, string(os.PathSeparator)))
+			
+			if depth < shortestPathLength {
+				shortestPathLength = depth
+				projectRoot = dir
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return baseDir // Fallback to base directory on error
+	}
+
+	return projectRoot
 }
 
 // runPlaywrightRunner executes the Node.js E2E testing script
