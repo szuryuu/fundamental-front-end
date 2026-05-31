@@ -51,7 +51,7 @@ function copyToClipboard(text) {
     } else if (process.platform === "darwin") {
       execSync("pbcopy", { input: text });
     } else {
-      execSync("xclip -selection clipboard", { input: text });
+      execSync("wl-copy", { input: text });
     }
     return true;
   } catch (err) {
@@ -62,7 +62,6 @@ function copyToClipboard(text) {
 function generateFeedback(report) {
   let feedbackBlocks = [];
 
-  // Prioritas 1: Reject Absolute
   if (report.rejected.length > 0) {
     feedbackBlocks.push(
       "Halo! Terima kasih telah mengirimkan submission kamu. Logika kode yang kamu buat sudah sangat baik, namun submission ini harus dikembalikan (Reject) karena belum memenuhi beberapa kriteria wajib berikut:\n",
@@ -81,9 +80,7 @@ function generateFeedback(report) {
     feedbackBlocks.push(
       "\nSilakan perbaiki bagian tersebut dan kirimkan kembali submission kamu. Tetap semangat!",
     );
-  }
-  // Prioritas 2: Ada Kriteria yang gagal tapi tidak di-reject mutlak
-  else {
+  } else {
     const failedCriteria = [];
     for (const [criteria, passed] of Object.entries(report.mandatory)) {
       if (!passed) failedCriteria.push(criteria);

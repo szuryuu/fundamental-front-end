@@ -1,8 +1,8 @@
 const { chromium } = require("playwright");
 const { spawn } = require("child_process");
-const { generateFeedback } = require("./feedback");
 const path = require("path");
 const { runCommand, printSummaryReport, colors } = require("../utils");
+const { generateFeedback } = require("./feedback");
 
 const validateReject = require("./specs/reject");
 const runCriteria1 = require("./specs/criteria1");
@@ -98,14 +98,13 @@ async function runSub3Tests(targetDir) {
     printSummaryReport(report);
 
     const { isCopied } = generateFeedback(report);
-    const { colors } = require("../utils");
     if (isCopied) {
       console.log(
         `${colors.green}[+] Feedback text automatically copied to clipboard!${colors.reset}\n`,
       );
     } else {
       console.log(
-        `${colors.yellow}[!] Failed to copy feedback to clipboard (xclip/pbcopy/clip not found).${colors.reset}\n`,
+        `${colors.yellow}[!] Failed to copy feedback to clipboard (wl-copy/pbcopy/clip not found).${colors.reset}\n`,
       );
     }
   } catch (e) {
