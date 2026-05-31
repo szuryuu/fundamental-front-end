@@ -97,10 +97,19 @@ async function runSub3Tests(targetDir) {
 
     printSummaryReport(report);
 
-    const { isCopied } = generateFeedback(report);
+    const { isCopied, cliHints } = generateFeedback(report);
+
+    console.log(
+      `\n${colors.bold} --- INLINE CODE HINTS (FOR REVIEWER) ---${colors.reset}`,
+    );
+    cliHints.forEach((hint) => {
+      console.log(`${colors.cyan}  ${hint}${colors.reset}`);
+    });
+    console.log("");
+
     if (isCopied) {
       console.log(
-        `${colors.green}[+] Feedback text automatically copied to clipboard!${colors.reset}\n`,
+        `${colors.green}[+] Full feedback text automatically copied to clipboard!${colors.reset}\n`,
       );
     } else {
       console.log(

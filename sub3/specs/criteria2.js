@@ -13,6 +13,11 @@ module.exports = async function runCriteria2(page, report) {
       lsData.includes("Beli Makan")
     ) {
       report.mandatory["Criteria 2 Basic: LocalStorage & Delete"] = true;
+    } else {
+      const msg =
+        "Semua data transaksi hilang setiap kali halaman di-refresh (localStorage belum digunakan).";
+      console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
+      report.rejected.push(msg);
     }
 
     const titleInput = page.locator(
