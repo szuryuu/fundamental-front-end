@@ -24,7 +24,7 @@ var forbiddenFrameworks = []string{"react", "vue", "@angular/core", "nuxt", "nex
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("[ERROR] Usage: reviewer <sub1|sub2> [path-to-zip]")
+		fmt.Println("[ERROR] Usage: reviewer <sub1|sub2|sub3> [path-to-zip]")
 		os.Exit(1)
 	}
 
@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 	// Ensure cleanup after execution to prevent disk bloat
-	defer os.RemoveAll(tmpDir) 
+	defer os.RemoveAll(tmpDir)
 
 	// Step 2: Extract and enforce absolute rejection criteria (Static Filter)
 	err = extractAndValidateZip(zipPath, tmpDir)
@@ -131,10 +131,10 @@ func extractAndValidateZip(zipPath string, dest string) error {
 		}
 
 		fpath := filepath.Join(dest, f.Name)
-		
+
 		// Prevent ZipSlip vulnerability
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
-			continue 
+			continue
 		}
 
 		if f.FileInfo().IsDir() {
@@ -188,7 +188,7 @@ func checkFrameworks(content []byte) error {
 	var pkg PackageJSON
 	if err := json.Unmarshal(content, &pkg); err != nil {
 		// Ignore parse errors as some students write invalid JSON
-		return nil 
+		return nil
 	}
 
 	for _, framework := range forbiddenFrameworks {
@@ -211,12 +211,12 @@ func resolveTargetDirectory(baseDir string) string {
 		if err != nil {
 			return nil
 		}
-		
+
 		// We define the project root as the highest-level directory containing package.json OR index.html
 		if !info.IsDir() && (info.Name() == "package.json" || info.Name() == "index.html") {
 			dir := filepath.Dir(path)
 			depth := len(strings.Split(dir, string(os.PathSeparator)))
-			
+
 			if depth < shortestPathLength {
 				shortestPathLength = depth
 				projectRoot = dir
