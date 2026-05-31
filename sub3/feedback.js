@@ -9,7 +9,7 @@ const templates = {
   c1Skilled: `Formulir transaksi belum memiliki sistem validasi yang menahan input kosong/tidak valid. Pastikan form menampilkan peringatan (contoh: via alert() atau validasi bawaan HTML5 required/min) dan mencegah data tersimpan jika judul kosong atau nominal uang kurang dari Rp 1.`,
   c1Advanced: `Daftar transaksimu sudah muncul, tetapi panel ringkasan keuangan (Total Saldo, Pemasukan, Pengeluaran) tidak merespons perubahan data. Pastikan teks pada panel tersebut dihitung ulang secara matematis dan diperbarui seketika (real-time) setiap kali ada penambahan, perubahan, atau penghapusan transaksi.`,
   c2Basic: `Data aplikasimu masih menguap/hilang ketika halaman di-refresh. Pastikan kamu memanggil localStorage.setItem dengan JSON.stringify() saat menyimpan data, dan memuatnya kembali saat halaman dibuka. Selain itu, pastikan fitur "Hapus" benar-benar menghapus data tersebut dari array utama sekaligus dari memori localStorage.`,
-  c2Skilled: `Alur fitur "Edit" belum tuntas. Saat tombol edit ditekan, formulir masukan wajib terisi otomatis dengan data transaksi yang dipilih. Setelah pengguna menekan simpan, perubahan tersebut harus diperbarui di memori, dan formulir harus kembali dikosongkan ke mode "Tambah Transaksi".`,
+  c2Skilled: `Alur fitur "Edit" belum tuntas. Pastikan formulir masukan terisi otomatis saat tombol edit ditekan. \n\nPENTING: Proses penyimpanan data hasil edit TIDAK BOLEH mengubah properti 'id' pada objek transaksi tersebut. Skrip penguji mendeteksi bahwa ID transaksi berubah saat disimpan (menggunakan id baru dari fungsi generateId). Ini bukanlah operasi Update/Edit, melainkan operasi menghapus dan membuat data baru. Gunakan ID lama untuk mencari index array yang tepat, lalu perbarui datanya.`,
   c2Advanced: `Untuk mendapatkan nilai sempurna di manajemen data, arsitektur pembaruan layarmu harus menggunakan Custom Event. Saat ada data yang berubah (tambah/edit/hapus), lepaskan sebuah sinyal menggunakan document.dispatchEvent(). Kemudian, pasang satu event listener sentral yang bertugas mendengarkan sinyal tersebut untuk memicu fungsi render ulang layar dan perhitungan dashboard.`,
   c3Basic: `Tombol "Ubah Tipe" pada transaksimu belum beroperasi dengan benar. Tombol ini harus mampu membalikkan tipe transaksi pada objek (misal: "income" menjadi "expense") lalu memastikan elemennya berpindah dari daftar pemasukan ke pengeluaran (atau sebaliknya).`,
   c3Skilled: `Fitur pencarianmu belum memenuhi kriteria "real-time" atau justru merusak layar. Pastikan kamu menggunakan event input (bukan submit atau sekadar click) agar daftar transaksi tersaring seketika saat pengguna mengetik. Jika fitur pencarian dibungkus tag <form>, pastikan kamu menambahkan e.preventDefault() agar halaman tidak mengalami reload yang merusak data state.`,
@@ -33,7 +33,7 @@ const shortTemplates = {
   c2Basic:
     "Gunakan localStorage.setItem/getItem dan pastikan tombol Hapus turut menghapus data dari memori.",
   c2Skilled:
-    "Tombol Edit harus mengisi form otomatis, menyimpan perubahan, lalu mereset form kembali.",
+    "Fitur Edit gagal. Form harus auto-fill dan dilarang keras mengubah properti 'id' saat di-save (jangan generate id baru).",
   c2Advanced:
     "Gunakan document.dispatchEvent() untuk memicu render ulang UI secara terpusat.",
   c3Basic:

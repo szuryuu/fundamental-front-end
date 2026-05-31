@@ -6,11 +6,29 @@ module.exports = async function runCriteria2(page, report) {
       `${colors.cyan}> Testing Criteria 2: Web Storage & Data Mutation...${colors.reset}`,
     );
 
-    const lsData = await page.evaluate(() => JSON.stringify(localStorage));
+    const getParsedStorage = () => {
+      for (let i = 0; i < localStorage.length; i++) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem(localStorage.key(i)));
+          if (
+            Array.isArray(parsed) &&
+            parsed.length > 0 &&
+            parsed[0].hasOwnProperty("id")
+          ) {
+            return parsed;
+          }
+        } catch (e) {}
+      }
+      return [];
+    };
+
+    const lsDataString = await page.evaluate(() =>
+      JSON.stringify(localStorage),
+    );
+
     if (
-      lsData &&
-      lsData.includes("Gaji Bulanan") &&
-      lsData.includes("Beli Makan")
+      lsDataString.includes("Gaji Bulanan") &&
+      lsDataString.includes("Beli Makan")
     ) {
       report.mandatory["Criteria 2 Basic: LocalStorage & Delete"] = true;
     } else {
@@ -18,6 +36,7 @@ module.exports = async function runCriteria2(page, report) {
         "Semua data transaksi hilang setiap kali halaman di-refresh (localStorage belum digunakan).";
       console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
       report.rejected.push(msg);
+      return;
     }
 
     const titleInput = page.locator(
@@ -34,14 +53,33 @@ module.exports = async function runCriteria2(page, report) {
       const btn = editBtns.nth(i);
       const btnText = await btn.innerText();
       if (btnText.toLowerCase() !== "ubah tipe") {
+        const preEditData = await page.evaluate(getParsedStorage);
+        const oldIds = preEditData.map((t) => t.id);
+
         await btn.click();
         await page.waitForTimeout(500);
         const filledTitle = await titleInput.inputValue();
+
         if (filledTitle.length > 0) {
-          report.mandatory["Criteria 2 Skilled: Edit Functionality"] = true;
-          await titleInput.fill(filledTitle + " Edited");
+          const newTitle = filledTitle + " Edited";
+          await titleInput.fill(newTitle);
           await submitBtn.click();
           await page.waitForTimeout(500);
+
+          const postEditData = await page.evaluate(getParsedStorage);
+          const editedItem = postEditData.find((t) => t.title === newTitle);
+
+          if (editedItem) {
+            if (oldIds.includes(editedItem.id)) {
+              report.mandatory["Criteria 2 Skilled: Edit Functionality"] = true;
+            } else {
+              console.error(
+                `${colors.yellow}  [!] WARNING: Fitur Edit mengubah ID transaksi (Ini operasi Delete+Add, bukan Edit Sejati). Kriteria gagal.${colors.reset}`,
+              );
+              report.mandatory["Criteria 2 Skilled: Edit Functionality"] =
+                false;
+            }
+          }
           break;
         }
       }
