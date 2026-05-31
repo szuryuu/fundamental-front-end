@@ -1,6 +1,10 @@
+const { colors } = require("../../utils");
+
 module.exports = async function runCriteria2(page, report) {
   try {
-    console.log(`> Testing Criteria 2: Web Storage & Data Mutation...`);
+    console.log(
+      `${colors.cyan}> Testing Criteria 2: Web Storage & Data Mutation...${colors.reset}`,
+    );
 
     const lsData = await page.evaluate(() => JSON.stringify(localStorage));
     if (
@@ -61,6 +65,8 @@ module.exports = async function runCriteria2(page, report) {
       }
     }
   } catch (e) {
-    console.error(`> [FAIL] Criteria 2 crashed: ${e.message.split("\n")[0]}`);
+    console.error(
+      `${colors.red}> [FAIL] Criteria 2 crashed: ${e.message.split("\n")[0]}${colors.reset}`,
+    );
   }
 };

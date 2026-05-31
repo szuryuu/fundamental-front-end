@@ -1,6 +1,10 @@
+const { colors } = require("../../utils");
+
 module.exports = async function runCriteria3(page, report) {
   try {
-    console.log(`> Testing Criteria 3: Interactive Features...`);
+    console.log(
+      `${colors.cyan}> Testing Criteria 3: Interactive Features...${colors.reset}`,
+    );
 
     const expenseItems = page.locator(
       '[data-testid="expenseList"] [data-testid="transactionItem"]',
@@ -49,6 +53,8 @@ module.exports = async function runCriteria3(page, report) {
       report.mandatory["Criteria 3 Advanced: Empty Search Restore"] = true;
     }
   } catch (e) {
-    console.error(`> [FAIL] Criteria 3 crashed: ${e.message.split("\n")[0]}`);
+    console.error(
+      `${colors.red}> [FAIL] Criteria 3 crashed: ${e.message.split("\n")[0]}${colors.reset}`,
+    );
   }
 };

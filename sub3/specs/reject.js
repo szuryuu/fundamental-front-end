@@ -1,7 +1,11 @@
+const { colors } = require("../../utils");
+
 module.exports = async function validateReject(page, report) {
   let isRejected = false;
 
-  console.log(`> Validating Reject Criteria: Greeting Name...`);
+  console.log(
+    `${colors.cyan}> Validating Reject Criteria: Greeting Name...${colors.reset}`,
+  );
   try {
     await page.waitForSelector(".tracker-header__greeting", {
       state: "attached",
@@ -11,18 +15,20 @@ module.exports = async function validateReject(page, report) {
       .innerText();
     if (greetingText.includes("Siswa Front-End")) {
       const msg = 'Teks "Siswa Front-End" belum diganti oleh siswa.';
-      console.error(`  [-] REJECT: ${msg}`);
+      console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
       report.rejected.push(msg);
       isRejected = true;
     }
   } catch (e) {
     const msg = "Elemen .tracker-header__greeting tidak ditemukan di DOM.";
-    console.error(`  [-] REJECT: ${msg}`);
+    console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
     report.rejected.push(msg);
     isRejected = true;
   }
 
-  console.log(`> Validating Reject Criteria: test-ids...`);
+  console.log(
+    `${colors.cyan}> Validating Reject Criteria: test-ids...${colors.reset}`,
+  );
   const reqTestIds = ["transactionForm", "incomeList", "expenseList"];
   for (const tId of reqTestIds) {
     try {
@@ -31,7 +37,7 @@ module.exports = async function validateReject(page, report) {
       });
     } catch (e) {
       const msg = `Elemen krusial dengan data-testid="${tId}" tidak ditemukan.`;
-      console.error(`  [-] REJECT: ${msg}`);
+      console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
       report.rejected.push(msg);
       isRejected = true;
     }
@@ -39,7 +45,7 @@ module.exports = async function validateReject(page, report) {
 
   if (isRejected) {
     console.error(
-      "\n  [!] WARNING: Submission contains REJECT criteria. Marking as failed but continuing E2E testing for full feedback...",
+      `\n${colors.yellow}  [!] WARNING: Submission contains REJECT criteria. Marking as failed but continuing E2E testing for full feedback...${colors.reset}`,
     );
     process.exitCode = 1;
   }

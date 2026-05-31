@@ -1,6 +1,10 @@
+const { colors } = require("../../utils");
+
 module.exports = async function runCriteria1(page, report) {
   try {
-    console.log(`> Testing Criteria 1: DOM, Validation, & Dashboard...`);
+    console.log(
+      `${colors.cyan}> Testing Criteria 1: DOM, Validation, & Dashboard...${colors.reset}`,
+    );
 
     let alertTriggered = false;
     const dialogHandler = async (dialog) => {
@@ -91,6 +95,8 @@ module.exports = async function runCriteria1(page, report) {
       report.mandatory["Criteria 1 Advanced: Dynamic Dashboard"] = true;
     }
   } catch (e) {
-    console.error(`> [FAIL] Criteria 1 crashed: ${e.message.split("\n")[0]}`);
+    console.error(
+      `${colors.red}> [FAIL] Criteria 1 crashed: ${e.message.split("\n")[0]}${colors.reset}`,
+    );
   }
 };

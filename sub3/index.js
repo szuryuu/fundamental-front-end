@@ -1,7 +1,7 @@
 const { chromium } = require("playwright");
 const { spawn } = require("child_process");
 const path = require("path");
-const { runCommand, printSummaryReport } = require("../utils");
+const { runCommand, printSummaryReport, colors } = require("../utils");
 
 const validateReject = require("./specs/reject");
 const runCriteria1 = require("./specs/criteria1");
@@ -25,10 +25,12 @@ async function runSub3Tests(targetDir) {
     optional: {},
   };
 
-  console.log(`> Executing: npm init -y && npm install live-server`);
+  console.log(
+    `${colors.cyan}> Executing: npm init -y && npm install live-server${colors.reset}`,
+  );
   runCommand("npm init -y && npm install live-server", targetDir);
 
-  console.log(`> Starting live-server...`);
+  console.log(`${colors.cyan}> Starting live-server...${colors.reset}`);
   const serverProcess = spawn("npx live-server --port=8080 --no-browser", {
     cwd: targetDir,
     detached: true,
@@ -82,7 +84,9 @@ async function runSub3Tests(targetDir) {
       };
     });
 
-    console.log(`> Navigating to ${dynamicUrl}...`);
+    console.log(
+      `${colors.cyan}> Navigating to ${dynamicUrl}...${colors.reset}`,
+    );
     await page.goto(dynamicUrl, { waitUntil: "domcontentloaded" });
 
     await validateReject(page, report);
@@ -92,7 +96,9 @@ async function runSub3Tests(targetDir) {
 
     printSummaryReport(report);
   } catch (e) {
-    console.error(`\n [!] FATAL: Critical Pipeline Crash: ${e.message}`);
+    console.error(
+      `\n${colors.red}${colors.bold} [!] FATAL: Critical Pipeline Crash: ${e.message}${colors.reset}`,
+    );
     process.exitCode = 1;
     printSummaryReport(report);
   } finally {

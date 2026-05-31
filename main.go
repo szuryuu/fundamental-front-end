@@ -12,6 +12,15 @@ import (
 	"time"
 )
 
+const (
+	Reset  = "\033[0m"
+	Red    = "\033[31m"
+	Green  = "\033[32m"
+	Yellow = "\033[33m"
+	Cyan   = "\033[36m"
+	Bold   = "\033[1m"
+)
+
 type PackageJSON struct {
 	Dependencies    map[string]string `json:"dependencies"`
 	DevDependencies map[string]string `json:"devDependencies"`
@@ -21,7 +30,7 @@ var forbiddenFrameworks = []string{"react", "vue", "@angular/core", "nuxt", "nex
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("[-] [ERROR] Usage: reviewer <sub1|sub2|sub3> [path-to-zip]")
+		fmt.Printf("%s[-] [ERROR] Usage: reviewer <sub1|sub2|sub3> [path-to-zip]%s\n", Red, Reset)
 		os.Exit(1)
 	}
 
@@ -31,47 +40,47 @@ func main() {
 	if len(os.Args) >= 3 {
 		zipPath = os.Args[2]
 	} else {
-		fmt.Println("[i] [INFO] No ZIP path provided. Searching for the newest submission...")
+		fmt.Printf("%s[i] [INFO] No ZIP path provided. Searching for the newest submission...%s\n", Cyan, Reset)
 		zipPath = getLatestZip()
 	}
 
-	fmt.Printf("\n[>] [LAYER 1] Starting Static Analysis for %s: %s\n", strings.ToUpper(submissionType), zipPath)
+	fmt.Printf("\n%s%s[>] [LAYER 1] Starting Static Analysis for %s: %s%s\n", Bold, Cyan, strings.ToUpper(submissionType), zipPath, Reset)
 
 	tmpDir, err := os.MkdirTemp("", "dicoding-review-*")
 	if err != nil {
-		fmt.Printf("[-] [FATAL] Failed to create temp directory: %v\n", err)
+		fmt.Printf("%s[-] [FATAL] Failed to create temp directory: %v%s\n", Red, err, Reset)
 		os.Exit(1)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	err = extractAndValidateZip(zipPath, tmpDir)
 	if err != nil {
-		fmt.Printf("[-] [REJECTED] Static validation failed: %v\n", err)
+		fmt.Printf("%s[-] [REJECTED] Static validation failed: %v%s\n", Red, err, Reset)
 		os.Exit(1)
 	}
 
-	fmt.Println("[+] [PASS] Static validation successful. No prohibited frameworks or 'node_modules' detected.")
+	fmt.Printf("%s[+] [PASS] Static validation successful. No prohibited frameworks or 'node_modules' detected.%s\n", Green, Reset)
 
 	actualProjectDir := resolveTargetDirectory(tmpDir)
 	if actualProjectDir != tmpDir {
-		fmt.Printf("[i] [INFO] Nested directory structure detected. Dynamically adjusting root to: %s\n", filepath.Base(actualProjectDir))
+		fmt.Printf("%s[i] [INFO] Nested directory structure detected. Dynamically adjusting root to: %s%s\n", Yellow, filepath.Base(actualProjectDir), Reset)
 	}
 
-	fmt.Printf("[*] [LAYER 2] Handing over to Playwright E2E Runner...\n")
+	fmt.Printf("%s%s[*] [LAYER 2] Handing over to Playwright E2E Runner...%s\n", Bold, Cyan, Reset)
 	runPlaywrightRunner(submissionType, actualProjectDir)
 }
 
 func getLatestZip() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("[-] [FATAL] Could not determine home directory: %v\n", err)
+		fmt.Printf("%s[-] [FATAL] Could not determine home directory: %v%s\n", Red, err, Reset)
 		os.Exit(1)
 	}
 
 	targetDir := filepath.Join(homeDir, "Personal", "temp", "dicoding-submission")
 	files, err := os.ReadDir(targetDir)
 	if err != nil {
-		fmt.Printf("[-] [FATAL] Could not read directory %s: %v\n", targetDir, err)
+		fmt.Printf("%s[-] [FATAL] Could not read directory %s: %v%s\n", Red, targetDir, err, Reset)
 		os.Exit(1)
 	}
 
@@ -92,11 +101,11 @@ func getLatestZip() string {
 	}
 
 	if latestFile == "" {
-		fmt.Println("[-] [FATAL] No .zip files found in", targetDir)
+		fmt.Printf("%s[-] [FATAL] No .zip files found in %s%s\n", Red, targetDir, Reset)
 		os.Exit(1)
 	}
 
-	fmt.Printf("[+] [AUTO-TARGET] Acquired target: %s\n", latestFile)
+	fmt.Printf("%s[+] [AUTO-TARGET] Acquired target: %s%s\n", Green, latestFile, Reset)
 	return latestFile
 }
 
@@ -225,8 +234,8 @@ func runPlaywrightRunner(subType string, targetDir string) {
 
 	err := cmd.Run()
 	if err != nil {
-		fmt.Printf("\n[!] [WARNING] E2E Pipeline finished with exit code 1. Manual review required.\n")
+		fmt.Printf("\n%s[!] [WARNING] E2E Pipeline finished with exit code 1. Manual review required.%s\n", Yellow, Reset)
 	} else {
-		fmt.Printf("\n[+] [SUCCESS] Automated E2E pipeline executed successfully.\n")
+		fmt.Printf("\n%s[+] [SUCCESS] Automated E2E pipeline executed successfully.%s\n", Green, Reset)
 	}
 }
