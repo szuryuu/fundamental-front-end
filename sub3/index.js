@@ -125,8 +125,17 @@ async function runSub3Tests(targetDir) {
   } finally {
     await browser.close();
     try {
-      process.kill(-serverProcess.pid);
+      if (process.platform === "win32") {
+        require("child_process").execSync(
+          `taskkill /pid ${serverProcess.pid} /T /F`,
+          { stdio: "ignore" },
+        );
+      } else {
+        process.kill(-serverProcess.pid, "SIGKILL");
+      }
     } catch (killError) {}
+
+    process.exit(process.exitCode || 0);
   }
 }
 

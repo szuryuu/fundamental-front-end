@@ -45,16 +45,36 @@ const shortTemplates = {
 };
 
 function copyToClipboard(text) {
-  try {
-    if (process.platform === "win32") {
-      execSync("clip", { input: text });
-    } else if (process.platform === "darwin") {
-      execSync("pbcopy", { input: text });
-    } else {
-      execSync("wl-copy", { input: text });
+  if (process.platform === "win32") {
+    try {
+      execSync("clip", { input: text, timeout: 2000 });
+      return true;
+    } catch (e) {
+      return false;
     }
-    return true;
-  } catch (err) {
+  } else if (process.platform === "darwin") {
+    try {
+      execSync("pbcopy", { input: text, timeout: 2000 });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  } else {
+    const linuxCommands = [
+      "wl-copy",
+      "xclip -selection clipboard",
+      "xsel --clipboard --input",
+      "cliphist store",
+    ];
+
+    for (const cmd of linuxCommands) {
+      try {
+        execSync(cmd, { input: text, timeout: 2000, stdio: "ignore" });
+        return true;
+      } catch (err) {
+        continue;
+      }
+    }
     return false;
   }
 }
