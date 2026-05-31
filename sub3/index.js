@@ -1,5 +1,6 @@
 const { chromium } = require("playwright");
 const { spawn } = require("child_process");
+const { generateFeedback } = require("./feedback");
 const path = require("path");
 const { runCommand, printSummaryReport, colors } = require("../utils");
 
@@ -95,6 +96,18 @@ async function runSub3Tests(targetDir) {
     await runCriteria2(page, report);
 
     printSummaryReport(report);
+
+    const { isCopied } = generateFeedback(report);
+    const { colors } = require("../utils");
+    if (isCopied) {
+      console.log(
+        `${colors.green}[+] Feedback text automatically copied to clipboard!${colors.reset}\n`,
+      );
+    } else {
+      console.log(
+        `${colors.yellow}[!] Failed to copy feedback to clipboard (xclip/pbcopy/clip not found).${colors.reset}\n`,
+      );
+    }
   } catch (e) {
     console.error(
       `\n${colors.red}${colors.bold} [!] FATAL: Critical Pipeline Crash: ${e.message}${colors.reset}`,
