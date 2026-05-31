@@ -14,7 +14,7 @@ async function runSub2Tests(targetDir) {
         mandatory: {
             "Criteria 1.1: Inherited Sub 1 Form Functionality": false,
             "Criteria 1.2: Inherited Sub 1 Web Components (Min 3)": false,
-            "Criteria 1.3: Inherited Sub 1 CSS Grid / Flexbox": false,
+            "Criteria 1.3: Inherited Sub 1 CSS Grid Layout": false,
             "Criteria 2: REST API Integrated (GET, POST, DELETE)": false,
             "Criteria 3: Webpack Bundler & Dev Server Configured": false,
             "Criteria 4: Fetch API Implementation": false,
@@ -64,7 +64,7 @@ async function runSub2Tests(targetDir) {
                 
                 if (cssGrep) {
                     const parts = cssGrep.split(':');
-                    let file = parts[0].replace('./', '');
+                    let file = parts[0].replace('./', ''); 
                     
                     let keyword = "animation/transition";
                     if (cssGrep.includes('transition:')) keyword = 'transition';
@@ -88,7 +88,8 @@ async function runSub2Tests(targetDir) {
 
     console.log('\n--- ⚙️ COMPILING PRODUCTION BUILD ---');
     console.log('> Executing: npm install');
-    runCommand('npm install', targetDir);
+    const installResult = runCommand('npm install', targetDir);
+    if (!installResult) console.log('⚠️ [WARNING] npm install reported warnings or errors. Proceeding anyway...');
     
     console.log('> Executing: npm run build');
     const buildResult = runCommand('npm run build', targetDir);
@@ -132,41 +133,57 @@ async function runSub2Tests(targetDir) {
     const page = await context.newPage();
 
     let apiStats = { get: false, post: false, delete: false, archive: false, unarchive: false };
+    let loadingStats = { get: false, post: false, delete: false, archive: false, unarchive: false };
     let isErrorTestDone = false; 
+    let isPurging = false;
 
     await page.route('**/*', async route => {
         const url = route.request().url();
         const method = route.request().method();
 
         if (url.includes('notes-api.dicoding.dev/v2/notes')) {
-            if (method === 'GET' && !apiStats.get) {
-                apiStats.get = true;
-                setTimeout(async () => {
+            if (isPurging) return route.continue();
+
+            let action = 'get';
+            if (method === 'POST') {
+                if (url.includes('archive') && !url.includes('unarchive')) action = 'archive';
+                else if (url.includes('unarchive')) action = 'unarchive';
+                else action = 'post';
+            } else if (method === 'DELETE') {
+                action = 'delete';
+            }
+
+            if (action === 'post' && !isErrorTestDone) {
+                isErrorTestDone = true;
+                return route.abort('failed'); 
+            }
+
+            apiStats[action] = true;
+
+            setTimeout(async () => {
+                try {
                     const hasLoading = await page.evaluate(() => {
                         const html = document.body.innerHTML.toLowerCase();
-                        return html.includes('loading') || html.includes('tunggu') || document.querySelector('loading-indicator') !== null;
+                        const hasTextMatch = html.includes('loading') || html.includes('tunggu') || html.includes('memuat') || html.includes('loader');
+                        const hasVisualMatch = document.querySelector('[class*="load" i], [class*="spin" i], [id*="load" i], [id*="spin" i]') !== null;
+                        
+                        let hasCustomElementMatch = false;
+                        const elements = document.querySelectorAll('*');
+                        for (let el of elements) {
+                            const tag = el.tagName.toLowerCase();
+                            if (tag.includes('-') && (tag.includes('load') || tag.includes('spin'))) {
+                                hasCustomElementMatch = true;
+                                break;
+                            }
+                        }
+                        
+                        return hasTextMatch || hasVisualMatch || hasCustomElementMatch;
                     });
-                    if (hasLoading) report.mandatory["Criteria 5: Loading Indicator Rendered"] = true;
-                }, 500);
-                
-                await new Promise(r => setTimeout(r, 2000));
-                return route.continue();
-            }
-
-            if (method === 'POST' && !url.includes('archive') && !url.includes('unarchive')) {
-                if (!isErrorTestDone) {
-                    isErrorTestDone = true;
-                    return route.abort('failed'); 
-                } else {
-                    apiStats.post = true;
-                    return route.continue();
-                }
-            }
-
-            if (method === 'DELETE') apiStats.delete = true;
-            if (method === 'POST' && url.includes('archive') && !url.includes('unarchive')) apiStats.archive = true;
-            if (method === 'POST' && url.includes('unarchive')) apiStats.unarchive = true;
-
+                    if (hasLoading) loadingStats[action] = true;
+                } catch(e) {}
+            }, 300);
+            
+            await new Promise(r => setTimeout(r, 1500));
             return route.continue();
         }
         route.continue();
@@ -178,25 +195,191 @@ async function runSub2Tests(targetDir) {
         await dialog.accept();
     });
 
+    const sweepModals = async () => {
+        for (let i = 0; i < 3; i++) {
+            await page.evaluate(() => {
+                const buttons = [];
+                function scan(node) {
+                    if (!node || node.nodeType !== 1) return;
+                    if (node.tagName === 'BUTTON' || (node.classList && (node.classList.contains('swal2-confirm') || node.classList.contains('swal2-close')))) {
+                        buttons.push(node);
+                    }
+                    if (node.shadowRoot) Array.from(node.shadowRoot.childNodes).forEach(scan);
+                    Array.from(node.childNodes).forEach(scan);
+                }
+                scan(document.body);
+
+                buttons.forEach(el => {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width === 0 || rect.height === 0) return;
+
+                    const text = (el.textContent || '').toLowerCase().trim();
+                    if (el.matches('.swal2-confirm, .swal2-close, .btn-close, [aria-label*="close" i]') || 
+                        text.includes('ok') || 
+                        (text.includes('ya') && !text.includes('tidak')) || 
+                        text.includes('yes') || 
+                        text.includes('tutup') || 
+                        text.includes('hapus') || 
+                        text.includes('delete') ||
+                        text.includes('lanjut') ||
+                        text.includes('yakin') ||
+                        text.includes('setuju')) {
+                        if (typeof el.click === 'function') el.click();
+                    }
+                });
+            });
+            await page.waitForTimeout(500);
+        }
+        await page.keyboard.press('Enter');
+        
+        await page.waitForFunction(() => {
+            const swal = document.querySelector('.swal2-container');
+            if (!swal) return true;
+            const style = window.getComputedStyle(swal);
+            return style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0';
+        }, { timeout: 4000 }).catch(() => {});
+
+        await page.waitForTimeout(1000); 
+    };
+
+    const forceClickHeuristic = async (keywords, excludeKeywords = []) => {
+        return await page.evaluate(({ keywords, excludeKeywords }) => {
+            let clicked = false;
+            function scan(node) {
+                if (!node || node.nodeType !== 1 || clicked) return;
+                
+                const style = window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+                const rect = node.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return;
+
+                const tag = node.tagName.toLowerCase();
+                const id = (node.id || '').toLowerCase();
+                const cls = (typeof node.className === 'string' ? node.className : '').toLowerCase();
+                const text = (node.textContent || '').toLowerCase().trim();
+                const aria = (node.getAttribute('aria-label') || '').toLowerCase();
+                const title = (node.getAttribute('title') || '').toLowerCase();
+
+                if (['body', 'main', 'section', 'form', 'note-list', 'div', 'note-item'].includes(tag) && text.length > 50) {
+                    // Ignore
+                } else {
+                    const stringToSearch = `${tag} ${id} ${cls} ${text} ${aria} ${title}`;
+                    const isButtonLike = tag === 'button' || tag === 'a' || tag.includes('btn') || cls.includes('btn') || cls.includes('button') || id.includes('btn') || tag === 'svg' || cls.includes('icon') || cls.includes('trash');
+                    
+                    if (isButtonLike) {
+                        const matchesKeyword = keywords.some(k => stringToSearch.includes(k));
+                        const matchesExclude = excludeKeywords.some(e => stringToSearch.includes(e));
+
+                        if (matchesKeyword && !matchesExclude) {
+                            node.click();
+                            clicked = true;
+                            return;
+                        }
+                    }
+                }
+                if (node.shadowRoot) Array.from(node.shadowRoot.childNodes).forEach(scan);
+                Array.from(node.children).forEach(scan);
+            }
+            scan(document.body);
+            return clicked;
+        }, { keywords, excludeKeywords });
+    };
+
     try {
         console.log(`\n--- 🔍 DYNAMIC E2E & NETWORK AUDIT (Target: ${dynamicUrl}) ---`);
         await page.goto(dynamicUrl);
         await page.waitForLoadState('networkidle');
 
+        console.log('> 🧹 PRE-FLIGHT: Wiping existing API data to ensure a clean testing canvas...');
+        isPurging = true;
+        await page.evaluate(async () => {
+            try {
+                let r = await fetch('https://notes-api.dicoding.dev/v2/notes');
+                let d = await r.json();
+                if (d.data) {
+                    for (let n of d.data) await fetch(`https://notes-api.dicoding.dev/v2/notes/${n.id}`, { method: 'DELETE' });
+                }
+                r = await fetch('https://notes-api.dicoding.dev/v2/notes/archived');
+                d = await r.json();
+                if (d.data) {
+                    for (let n of d.data) await fetch(`https://notes-api.dicoding.dev/v2/notes/${n.id}`, { method: 'DELETE' });
+                }
+            } catch(e) {}
+        });
+        isPurging = false;
+
+        console.log('> ♻️ Reloading UI to reflect clean state...');
+        await page.reload();
+
+        console.log('> ⏳ Waiting for asynchronous renders and API delays to complete...');
+        await page.waitForTimeout(4500); 
+        await page.waitForLoadState('networkidle');
+
+        await page.addStyleTag({ content: '#webpack-dev-server-client-overlay { display: none !important; pointer-events: none !important; z-index: -9999 !important; }' });
+        await page.evaluate(() => {
+            const killOverlay = () => {
+                const overlay = document.getElementById('webpack-dev-server-client-overlay');
+                if (overlay) overlay.remove();
+            };
+            killOverlay();
+            const observer = new MutationObserver(killOverlay);
+            observer.observe(document.body, { childList: true, subtree: true });
+        });
+
         console.log('--- 🛡️ VERIFYING INHERITED SUBMISSION 1 CRITERIA ---');
         
-        const titleInput = page.locator('input[type="text"], input[name="title"], #title, [placeholder*="judul" i]').first();
-        const bodyInput = page.locator('textarea, [name="body"], #body, [placeholder*="isi" i]').first();
-        const submitBtn = page.locator('button[type="submit"], form button').first();
+        let titleInput = null, bodyInput = null, submitBtn = null;
+        
+        const titleSelectors = [
+            'note-form input', 
+            '#title',
+            'input[name="title"]', 
+            '[placeholder*="judul" i]', 
+            '[placeholder*="title" i]', 
+            'input[type="text"]:not([placeholder*="cari" i]):not([placeholder*="search" i]):not([id*="search" i]):not([class*="search" i])', 
+            'input:not([type="search"]):not([id*="search" i]):not([class*="search" i]):not([placeholder*="cari" i])'
+        ];
+        for (const sel of titleSelectors) {
+            const el = page.locator(sel).first();
+            if (await el.isVisible().catch(()=>false)) { titleInput = el; break; }
+        }
 
-        if (await titleInput.isVisible() && await bodyInput.isVisible() && await submitBtn.isVisible()) {
-            report.mandatory["Criteria 1.1: Inherited Sub 1 Form Functionality"] = true;
+        const bodySelectors = ['note-form textarea', '#body', 'textarea[name="body"]', '[placeholder*="isi" i]', '[placeholder*="note" i]', 'textarea'];
+        for (const sel of bodySelectors) {
+            const el = page.locator(sel).first();
+            if (await el.isVisible().catch(()=>false)) { bodyInput = el; break; }
+        }
+
+        const submitSelectors = [
+            'note-form button[type="submit"]', 'note-form button', 'button[type="submit"]',
+            'button:has-text("Tambah")', 'button:has-text("Simpan")', 'button:has-text("Add")', 'button:has-text("Submit")',
+            'form button:not([type="reset"]):not([type="button"]):not(:has-text("Batal")):not(:has-text("Bersih"))',
+            'form button'
+        ];
+
+        for (const sel of submitSelectors) {
+            const btn = page.locator(sel).first();
+            if (await btn.isVisible()) {
+                submitBtn = btn;
+                break;
+            }
+        }
+
+        if (titleInput && bodyInput && submitBtn) {
+            const titleTag = await titleInput.evaluate(el => el.tagName.toLowerCase());
+            const bodyTag = await bodyInput.evaluate(el => el.tagName.toLowerCase());
+
+            if (titleTag === 'input' && bodyTag === 'textarea') {
+                report.mandatory["Criteria 1.1: Inherited Sub 1 Form Functionality"] = true;
+            } else {
+                report.mandatory["Criteria 1.1: Inherited Sub 1 Form Functionality"] = `FAIL: Tag tidak sesuai (<${titleTag}> & <${bodyTag}>)`;
+            }
             
             console.log('> 🧪 Injecting Stage 1: Sabotaged payload to trigger error handling...');
             await titleInput.fill('Test Error Handling');
             await bodyInput.fill('Testing API failure response.');
-            await submitBtn.click();
-            await page.waitForTimeout(1000); 
+            await submitBtn.click({ force: true }); 
+            await sweepModals(); 
             
             if (isErrorHandled) {
                 report.optional["Suggestion 2: Error Feedback Handled"] = true;
@@ -208,170 +391,139 @@ async function runSub2Tests(targetDir) {
                 if (hasErrorText) report.optional["Suggestion 2: Error Feedback Handled"] = true;
             }
 
-            await page.evaluate(() => {
-                const buttons = document.querySelectorAll('button, .swal2-confirm, .swal2-close, .btn-close');
-                buttons.forEach(el => {
-                    const text = (el.textContent || '').toLowerCase().trim();
-                    if (el.matches('.swal2-confirm, .swal2-close, .btn-close, [aria-label*="close" i]') || text === 'ok' || text === 'ya' || text === 'tutup') {
-                        if (typeof el.click === 'function') el.click();
-                    }
-                });
-            });
-            await page.waitForTimeout(1000); 
-
             console.log('> 🧪 Injecting Stage 2: Valid payload for ARCHIVE/UNARCHIVE operations...');
             await titleInput.fill(`Target Archive ${Date.now()}`);
             await bodyInput.fill('This note guarantees a target for the Archive Sniper.');
-            await submitBtn.click();
-            await page.waitForTimeout(1500);
-
-            await page.evaluate(() => {
-                const buttons = document.querySelectorAll('button, .swal2-confirm');
-                buttons.forEach(el => {
-                    const text = (el.textContent || '').toLowerCase().trim();
-                    if (el.matches('.swal2-confirm') || text === 'ok' || text === 'ya') {
-                        if (typeof el.click === 'function') el.click();
-                    }
-                });
-            });
-            await page.waitForTimeout(500);
+            await submitBtn.click({ force: true });
+            await sweepModals();
 
             console.log('> 🧪 Injecting Stage 3: Valid payload for DELETE operation...');
             await titleInput.fill(`Target Delete ${Date.now()}`);
             await bodyInput.fill('This note guarantees a target for the Delete Sniper.');
-            await submitBtn.click();
-            await page.waitForTimeout(1500);
+            await submitBtn.click({ force: true });
+            await sweepModals(); 
+            
+        } else {
+            report.mandatory["Criteria 1.1: Inherited Sub 1 Form Functionality"] = "FAIL: Input/Textarea/Submit button tidak terdeteksi";
         }
 
-        const componentCount = await page.evaluate(() => {
+        const componentTags = await page.evaluate(() => {
             const customTags = new Set();
             function scanNode(node) {
-                if (node.tagName && node.tagName.includes('-')) customTags.add(node.tagName.toLowerCase());
+                if (node.tagName && node.tagName.includes('-')) customTags.add(`<${node.tagName.toLowerCase()}>`);
                 if (node.shadowRoot) node.shadowRoot.childNodes.forEach(scanNode);
                 node.childNodes.forEach(scanNode);
             }
             scanNode(document.body);
-            return customTags.size;
+            return Array.from(customTags);
         });
-        if (componentCount >= 3) report.mandatory["Criteria 1.2: Inherited Sub 1 Web Components (Min 3)"] = true;
 
-        const hasGrid = await page.evaluate(() => {
-            const elements = document.querySelectorAll('*');
-            for (let el of elements) {
-                if (window.getComputedStyle(el).display === 'grid' || window.getComputedStyle(el).display === 'flex') return true;
+        if (componentTags.length >= 3) {
+            report.mandatory["Criteria 1.2: Inherited Sub 1 Web Components (Min 3)"] = `PASS: Found ${componentTags.join(', ')}`;
+        } else {
+            report.mandatory["Criteria 1.2: Inherited Sub 1 Web Components (Min 3)"] = `FAIL: Only found ${componentTags.length} (${componentTags.join(', ') || 'None'})`;
+        }
+
+        const gridInfo = await page.evaluate(() => {
+            let foundGridContext = null;
+            function scanNode(node) {
+                if (!node || node.nodeType !== 1 || foundGridContext) return;
+                
+                const style = window.getComputedStyle(node);
+                
+                if (style.display === 'grid' || style.display === 'inline-grid') {
+                    const childTags = Array.from(node.children).map(c => c.tagName.toLowerCase());
+                    const childrenCount = childTags.filter(t => !['style', 'script', 'template'].includes(t)).length;
+                    const hasSlot = childTags.includes('slot');
+                    
+                    const id = (node.id || '').toLowerCase();
+                    const className = (typeof node.className === 'string' ? node.className : '').toLowerCase();
+                    const tag = node.tagName.toLowerCase();
+
+                    if (tag !== 'body' && tag !== 'html' && tag !== 'main') {
+                        if (childrenCount >= 2 || hasSlot || 
+                            id.includes('list') || id.includes('note') || id.includes('container') || id.includes('grid') || id.includes('card') ||
+                            className.includes('list') || className.includes('note') || className.includes('container') || className.includes('grid') || className.includes('card') ||
+                            tag.includes('list') || tag.includes('grid') || tag.includes('card')) {
+                            
+                            let descriptor = tag;
+                            if (node.id) descriptor += `#${node.id}`;
+                            if (typeof node.className === 'string' && node.className.trim() !== '') {
+                                descriptor += `.${node.className.trim().replace(/\s+/g, '.')}`;
+                            }
+                            foundGridContext = descriptor;
+                        }
+                    }
+                }
+                
+                if (node.shadowRoot) scanNode(node.shadowRoot);
+                Array.from(node.children).forEach(scanNode);
             }
-            return false;
+            scanNode(document.body);
+            return foundGridContext;
         });
-        if (hasGrid) report.mandatory["Criteria 1.3: Inherited Sub 1 CSS Grid / Flexbox"] = true;
+
+        if (gridInfo) {
+            report.mandatory["Criteria 1.3: Inherited Sub 1 CSS Grid Layout"] = `PASS: Applied on ${gridInfo}`;
+        } else {
+            report.mandatory["Criteria 1.3: Inherited Sub 1 CSS Grid Layout"] = "FAIL: List is not using CSS Grid";
+        }
 
         console.log('\n--- 🤖 AUTO-SNIPER: EXECUTING ARCHIVE & UNARCHIVE ---');
         
-        await page.evaluate(() => {
-            const buttons = document.querySelectorAll('button, .swal2-confirm, .swal2-close, .btn-close');
-            buttons.forEach(el => {
-                const text = (el.textContent || '').toLowerCase().trim();
-                if (el.matches('.swal2-confirm, .swal2-close, .btn-close, [aria-label*="close" i]') || text === 'ok' || text === 'ya' || text === 'tutup') {
-                    if (typeof el.click === 'function') el.click();
-                }
-            });
-        });
-        await page.waitForTimeout(1000); 
+        console.log(`> 🎯 Auto-clicking ARCHIVE using Brute-Force Heuristic...`);
+        const archiveClicked = await forceClickHeuristic(['archive', 'arsip'], ['unarchive', 'batal', 'kembali', 'tab']);
+        if (!archiveClicked) console.log("> ⚠️ Warning: Could not locate Archive button via heuristics.");
+        await sweepModals(); 
 
-        const archiveSelectors = ['button:has-text("Arsip")', 'button:has-text("Archive")', 'button[class*="archive" i]', 'button[id*="archive" i]', 'button[aria-label*="archive" i]', 'button[aria-label*="arsip" i]', 'button:has(.lucide-archive)', 'button:has(.fa-archive)', '.archive-btn'];
-        for (const sel of archiveSelectors) {
-            const btn = page.locator(sel).first();
-            if (await btn.isVisible()) { 
-                console.log(`> 🎯 Auto-clicking ARCHIVE using heuristic: ${sel}`);
-                await btn.click({ force: true }); 
-                break; 
-            }
-        }
-        await page.waitForTimeout(1500);
+        console.log('> 🎯 Navigating to Archived Tab...');
+        await forceClickHeuristic(['arsip', 'archive', 'tab-archive'], ['unarchive', 'batal', 'kembali', 'btn', 'button', 'trash']);
+        await page.waitForTimeout(2000);
 
-        await page.evaluate(() => {
-            const buttons = document.querySelectorAll('button, .swal2-confirm');
-            buttons.forEach(el => {
-                const text = (el.textContent || '').toLowerCase().trim();
-                if (el.matches('.swal2-confirm') || text === 'ok' || text === 'ya') {
-                    if (typeof el.click === 'function') el.click();
-                }
-            });
-        });
-        await page.waitForTimeout(1000);
-
-        const unarchiveSelectors = ['button:has-text("Batal Arsip")', 'button:has-text("Unarchive")', 'button[class*="unarchive" i]', 'button[id*="unarchive" i]', 'button[aria-label*="unarchive" i]', 'button:has(.lucide-inbox)', '.unarchive-btn'];
-        let clickedUnarchive = false;
-
-        for (const sel of unarchiveSelectors) {
-            const btn = page.locator(sel).first();
-            if (await btn.isVisible()) { 
-                console.log(`> 🎯 Auto-clicking UNARCHIVE using heuristic: ${sel}`);
-                await btn.click({ force: true }); 
-                clickedUnarchive = true;
-                break; 
-            }
-        }
-
-        if (!clickedUnarchive) {
-            console.log('> ⚠️ Unarchive button hidden. Attempting to navigate to Archived Tab...');
-            const tabSelectors = ['button:has-text("Arsip")', 'a:has-text("Arsip")', 'button:has-text("Archive")', 'a:has-text("Archive")', '.tab-archive'];
-            for (const tab of tabSelectors) {
-                const tabBtn = page.locator(tab).first();
-                if (await tabBtn.isVisible()) {
-                    await tabBtn.click({ force: true });
-                    await page.waitForTimeout(1000);
-                    break;
-                }
-            }
-            for (const sel of unarchiveSelectors) {
-                const btn = page.locator(sel).first();
-                if (await btn.isVisible()) { 
-                    console.log(`> 🎯 Auto-clicking UNARCHIVE after tab switch: ${sel}`);
-                    await btn.click({ force: true }); 
-                    clickedUnarchive = true;
-                    break; 
-                }
-            }
-        }
-        await page.waitForTimeout(1500);
+        console.log(`> 🎯 Auto-clicking UNARCHIVE using Brute-Force Heuristic...`);
+        const unarchiveClicked = await forceClickHeuristic(['unarchive', 'batal arsip', 'kembali', 'pindah', 'inbox'], ['tab']);
+        if (!unarchiveClicked) console.log("> ⚠️ Warning: Could not locate Unarchive button via heuristics.");
+        await sweepModals();
 
         console.log('\n--- 🤖 AUTO-SNIPER: EXECUTING DELETE ---');
-        const homeTabSelectors = ['button:has-text("Aktif")', 'a:has-text("Aktif")', 'button:has-text("Active")', 'a:has-text("Active")', 'button:has-text("Home")', 'a:has-text("Home")'];
-        for (const tab of homeTabSelectors) {
-            const tabBtn = page.locator(tab).first();
-            if (await tabBtn.isVisible()) {
-                await tabBtn.click({ force: true });
-                await page.waitForTimeout(1000);
-                break;
-            }
-        }
+        
+        console.log('> 🎯 Navigating back to Active Tab...');
+        await forceClickHeuristic(['aktif', 'active', 'home'], ['tab-archive', 'arsip', 'archive']);
+        await page.waitForTimeout(2000);
 
-        const deleteSelectors = ['button:has-text("Hapus")', 'button:has-text("Delete")', 'button[class*="delete" i]', 'button[id*="delete" i]', 'button[aria-label*="delete" i]', 'button[aria-label*="hapus" i]', 'button:has(.lucide-trash)', 'button:has(.fa-trash)', '.delete-btn'];
-        for (const sel of deleteSelectors) {
-            const btn = page.locator(sel).first();
-            if (await btn.isVisible()) { 
-                console.log(`> 🎯 Auto-clicking DELETE using heuristic: ${sel}`);
-                await btn.click({ force: true }); 
-                break; 
-            }
-        }
-        await page.waitForTimeout(1000); 
-
+        console.log(`> 🎯 Auto-clicking DELETE using Brute-Force Heuristic...`);
+        const deleteClicked = await forceClickHeuristic(['delete', 'hapus', 'trash'], ['tab']);
+        if (!deleteClicked) console.log("> ⚠️ Warning: Could not locate Delete button via heuristics.");
+        
         console.log(`> 🧹 Sweeping for DELETE Confirmation Modal...`);
-        await page.evaluate(() => {
-            const buttons = document.querySelectorAll('button, .swal2-confirm');
-            buttons.forEach(el => {
-                const text = (el.textContent || '').toLowerCase().trim();
-                if (el.matches('.swal2-confirm') || text === 'ok' || text === 'ya' || text === 'yes' || text === 'hapus' || text === 'delete') {
-                    if (typeof el.click === 'function') el.click();
-                }
-            });
-        });
-        await page.waitForTimeout(1500); 
+        await sweepModals(); 
 
-        if (apiStats.get && apiStats.post && apiStats.delete) {
+        const missingMethods = [];
+        if (!apiStats.get) missingMethods.push('GET');
+        if (!apiStats.post) missingMethods.push('POST');
+        if (!apiStats.delete) missingMethods.push('DELETE');
+
+        if (missingMethods.length === 0) {
             report.mandatory["Criteria 2: REST API Integrated (GET, POST, DELETE)"] = true;
+        } else {
+            report.mandatory["Criteria 2: REST API Integrated (GET, POST, DELETE)"] = `FAIL: Missing ${missingMethods.join(', ')}`;
         }
+
+        const missingLoading = [];
+        if (apiStats.get && !loadingStats.get) missingLoading.push('GET');
+        if (apiStats.post && !loadingStats.post) missingLoading.push('POST');
+        if (apiStats.delete && !loadingStats.delete) missingLoading.push('DELETE');
+        if (apiStats.archive && !loadingStats.archive) missingLoading.push('ARCHIVE');
+        if (apiStats.unarchive && !loadingStats.unarchive) missingLoading.push('UNARCHIVE');
+
+        if (missingLoading.length === 0 && (apiStats.get || apiStats.post || apiStats.delete)) {
+            report.mandatory["Criteria 5: Loading Indicator Rendered"] = true;
+        } else if (missingLoading.length > 0) {
+            report.mandatory["Criteria 5: Loading Indicator Rendered"] = `FAIL: No loading shown on ${missingLoading.join(', ')}`;
+        } else {
+            report.mandatory["Criteria 5: Loading Indicator Rendered"] = "FAIL: No API requests made to test loading";
+        }
+
         if (apiStats.archive && apiStats.unarchive) {
             report.optional["Suggestion 1: Archive & Unarchive Implementation"] = true;
         } else if (apiStats.archive && !apiStats.unarchive) {
@@ -380,7 +532,7 @@ async function runSub2Tests(targetDir) {
 
         printSummaryReport(report);
 
-        if (!report.mandatory["Criteria 2: REST API Integrated (GET, POST, DELETE)"]) {
+        if (missingMethods.length > 0) {
             process.exitCode = 1; 
         }
 

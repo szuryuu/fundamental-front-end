@@ -13,35 +13,38 @@ function runCommand(command, cwd) {
     }
 }
 
-// Helper function to print the final aggregated report
+// Helper function to print the final aggregated report dynamically
 function printSummaryReport(report) {
     console.log('\n======================================================');
     console.log('📊 FINAL AUTOMATED REVIEW SUMMARY');
     console.log('======================================================');
     
     const formatStatus = (status) => {
-        if (status === true) return '✅ PASS';
-        if (status === false) return '❌ FAIL';
+        if (status === true || (typeof status === 'string' && status.startsWith('PASS'))) return '✅ PASS';
+        if (status === false || (typeof status === 'string' && status.startsWith('FAIL'))) return '❌ FAIL';
         if (typeof status === 'string' && status.startsWith('INFO')) return 'ℹ️ INFO';
         return '❌ FAIL';
     };
 
+    const formatKey = (key, status) => {
+        if (typeof status === 'string') {
+            // Extract the context provided after the prefix (e.g., "PASS: <app-bar>")
+            const match = status.match(/^(PASS|FAIL|INFO):\s*(.*)/);
+            if (match && match[2]) {
+                return `${key} (${match[2]})`;
+            }
+        }
+        return key;
+    };
+
     console.log('\n--- 🎯 MANDATORY CRITERIA ---');
     for (const [key, status] of Object.entries(report.mandatory)) {
-        let displayKey = key;
-        if (typeof status === 'string' && status.startsWith('INFO: ')) {
-            displayKey = `${key} (${status.replace('INFO: ', '')})`;
-        }
-        console.log(` ${formatStatus(status).padEnd(8)} | ${displayKey}`);
+        console.log(` ${formatStatus(status).padEnd(8)} | ${formatKey(key, status)}`);
     }
     
     console.log('\n--- 💡 OPTIONAL SUGGESTIONS ---');
     for (const [key, status] of Object.entries(report.optional)) {
-        let displayKey = key;
-        if (typeof status === 'string' && status.startsWith('INFO: ')) {
-            displayKey = `${key} (${status.replace('INFO: ', '')})`;
-        }
-        console.log(` ${formatStatus(status).padEnd(8)} | ${displayKey}`);
+        console.log(` ${formatStatus(status).padEnd(8)} | ${formatKey(key, status)}`);
     }
     
     console.log('\n⚠️  NOTE: Visual aesthetics, animation smoothness, and code plagiarism still require human verification.');
