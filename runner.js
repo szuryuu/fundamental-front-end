@@ -1,7 +1,6 @@
-// runner.js
 const { runSub1Tests } = require("./sub1");
 const { runSub2Tests } = require("./sub2");
-const { runSub3Tests } = require("./sub3");
+const { runSub3Tests } = require("./sub3/index");
 
 const subType = process.argv[2];
 const targetDir = process.argv[3];

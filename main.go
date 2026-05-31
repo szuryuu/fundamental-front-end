@@ -1,4 +1,3 @@
-// main.go
 package main
 
 import (
@@ -13,75 +12,66 @@ import (
 	"time"
 )
 
-// PackageJSON represents the structure of a Node.js package.json file
 type PackageJSON struct {
 	Dependencies    map[string]string `json:"dependencies"`
 	DevDependencies map[string]string `json:"devDependencies"`
 }
 
-// Prohibited JS frameworks for pure Vanilla JS submissions
 var forbiddenFrameworks = []string{"react", "vue", "@angular/core", "nuxt", "next"}
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("[ERROR] Usage: reviewer <sub1|sub2|sub3> [path-to-zip]")
+		fmt.Println("[-] [ERROR] Usage: reviewer <sub1|sub2|sub3> [path-to-zip]")
 		os.Exit(1)
 	}
 
 	submissionType := os.Args[1]
 	var zipPath string
 
-	// AUTO-TARGETING LOGIC: If no path is provided, find the newest ZIP automatically.
 	if len(os.Args) >= 3 {
 		zipPath = os.Args[2]
 	} else {
-		fmt.Println("🔍 [INFO] No ZIP path provided. Searching for the newest submission...")
+		fmt.Println("[i] [INFO] No ZIP path provided. Searching for the newest submission...")
 		zipPath = getLatestZip()
 	}
 
-	fmt.Printf("\n🚀 [LAYER 1] Starting Static Analysis for %s: %s\n", strings.ToUpper(submissionType), zipPath)
+	fmt.Printf("\n[>] [LAYER 1] Starting Static Analysis for %s: %s\n", strings.ToUpper(submissionType), zipPath)
 
-	// Step 1: Create an isolated temporary environment
 	tmpDir, err := os.MkdirTemp("", "dicoding-review-*")
 	if err != nil {
-		fmt.Printf("❌ [FATAL] Failed to create temp directory: %v\n", err)
+		fmt.Printf("[-] [FATAL] Failed to create temp directory: %v\n", err)
 		os.Exit(1)
 	}
-	// Ensure cleanup after execution to prevent disk bloat
 	defer os.RemoveAll(tmpDir)
 
-	// Step 2: Extract and enforce absolute rejection criteria (Static Filter)
 	err = extractAndValidateZip(zipPath, tmpDir)
 	if err != nil {
-		fmt.Printf("❌ [REJECTED] Static validation failed: %v\n", err)
+		fmt.Printf("[-] [REJECTED] Static validation failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Println("✅ [PASS] Static validation successful. No prohibited frameworks or 'node_modules' detected.")
+	fmt.Println("[+] [PASS] Static validation successful. No prohibited frameworks or 'node_modules' detected.")
 
-	// Step 3: Resolve the actual project root (Handling Nested Zip Folders)
 	actualProjectDir := resolveTargetDirectory(tmpDir)
 	if actualProjectDir != tmpDir {
-		fmt.Printf("📂 [INFO] Nested directory structure detected. Dynamically adjusting root to: %s\n", filepath.Base(actualProjectDir))
+		fmt.Printf("[i] [INFO] Nested directory structure detected. Dynamically adjusting root to: %s\n", filepath.Base(actualProjectDir))
 	}
 
-	// Step 4: Trigger the Dynamic E2E Testing layer
-	fmt.Printf("⚙️  [LAYER 2] Handing over to Playwright E2E Runner...\n")
+	fmt.Printf("[*] [LAYER 2] Handing over to Playwright E2E Runner...\n")
 	runPlaywrightRunner(submissionType, actualProjectDir)
 }
 
-// getLatestZip scans the default download directory for the most recently modified .zip file
 func getLatestZip() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("❌ [FATAL] Could not determine home directory: %v\n", err)
+		fmt.Printf("[-] [FATAL] Could not determine home directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	targetDir := filepath.Join(homeDir, "Personal", "temp", "dicoding-submission")
 	files, err := os.ReadDir(targetDir)
 	if err != nil {
-		fmt.Printf("❌ [FATAL] Could not read directory %s: %v\n", targetDir, err)
+		fmt.Printf("[-] [FATAL] Could not read directory %s: %v\n", targetDir, err)
 		os.Exit(1)
 	}
 
@@ -102,15 +92,14 @@ func getLatestZip() string {
 	}
 
 	if latestFile == "" {
-		fmt.Println("❌ [FATAL] No .zip files found in", targetDir)
+		fmt.Println("[-] [FATAL] No .zip files found in", targetDir)
 		os.Exit(1)
 	}
 
-	fmt.Printf("🎯 [AUTO-TARGET] Acquired target: %s\n", latestFile)
+	fmt.Printf("[+] [AUTO-TARGET] Acquired target: %s\n", latestFile)
 	return latestFile
 }
 
-// extractAndValidateZip unzips the file while performing on-the-fly static analysis
 func extractAndValidateZip(zipPath string, dest string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -121,7 +110,6 @@ func extractAndValidateZip(zipPath string, dest string) error {
 	hasHTML := false
 
 	for _, f := range r.File {
-		// Absolute Rejection: Presence of node_modules means automatic failure
 		if strings.Contains(f.Name, "node_modules/") {
 			return fmt.Errorf("ZIP contains prohibited 'node_modules' directory")
 		}
@@ -132,7 +120,6 @@ func extractAndValidateZip(zipPath string, dest string) error {
 
 		fpath := filepath.Join(dest, f.Name)
 
-		// Prevent ZipSlip vulnerability
 		if !strings.HasPrefix(fpath, filepath.Clean(dest)+string(os.PathSeparator)) {
 			continue
 		}
@@ -157,7 +144,6 @@ func extractAndValidateZip(zipPath string, dest string) error {
 			return err
 		}
 
-		// Dynamically analyze package.json during extraction (removed root path restriction to support nested zips)
 		if strings.HasSuffix(f.Name, "package.json") {
 			content, _ := io.ReadAll(rc)
 			if err := checkFrameworks(content); err != nil {
@@ -166,7 +152,7 @@ func extractAndValidateZip(zipPath string, dest string) error {
 				return err
 			}
 			rc.Close()
-			rc, _ = f.Open() // Reset reader for actual file writing
+			rc, _ = f.Open()
 		}
 
 		_, err = io.Copy(outFile, rc)
@@ -183,11 +169,9 @@ func extractAndValidateZip(zipPath string, dest string) error {
 	return nil
 }
 
-// checkFrameworks parses the package.json to detect prohibited modern JS frameworks
 func checkFrameworks(content []byte) error {
 	var pkg PackageJSON
 	if err := json.Unmarshal(content, &pkg); err != nil {
-		// Ignore parse errors as some students write invalid JSON
 		return nil
 	}
 
@@ -202,7 +186,6 @@ func checkFrameworks(content []byte) error {
 	return nil
 }
 
-// resolveTargetDirectory recursively scans the temp directory to find the actual project root
 func resolveTargetDirectory(baseDir string) string {
 	var projectRoot = baseDir
 	var shortestPathLength = 9999
@@ -212,7 +195,6 @@ func resolveTargetDirectory(baseDir string) string {
 			return nil
 		}
 
-		// We define the project root as the highest-level directory containing package.json OR index.html
 		if !info.IsDir() && (info.Name() == "package.json" || info.Name() == "index.html") {
 			dir := filepath.Dir(path)
 			depth := len(strings.Split(dir, string(os.PathSeparator)))
@@ -226,15 +208,13 @@ func resolveTargetDirectory(baseDir string) string {
 	})
 
 	if err != nil {
-		return baseDir // Fallback to base directory on error
+		return baseDir
 	}
 
 	return projectRoot
 }
 
-// runPlaywrightRunner executes the Node.js E2E testing script
 func runPlaywrightRunner(subType string, targetDir string) {
-	// Dynamically resolve the absolute path of runner.js based on the executable location
 	executablePath, _ := os.Executable()
 	baseDir := filepath.Dir(executablePath)
 	runnerPath := filepath.Join(baseDir, "runner.js")
@@ -245,8 +225,8 @@ func runPlaywrightRunner(subType string, targetDir string) {
 
 	err := cmd.Run()
 	if err != nil {
-		fmt.Printf("\n⚠️  [WARNING] E2E Pipeline finished with exit code 1. Manual review required.\n")
+		fmt.Printf("\n[!] [WARNING] E2E Pipeline finished with exit code 1. Manual review required.\n")
 	} else {
-		fmt.Printf("\n🎉 [SUCCESS] Automated E2E pipeline executed successfully.\n")
+		fmt.Printf("\n[+] [SUCCESS] Automated E2E pipeline executed successfully.\n")
 	}
 }
