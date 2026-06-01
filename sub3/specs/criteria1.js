@@ -6,6 +6,12 @@ module.exports = async function runCriteria1(page, report) {
       `${colors.cyan}> Testing Criteria 1: DOM, Validation, & Dashboard...${colors.reset}`,
     );
 
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const dynamicDate = `${yyyy}-${mm}-${dd}`;
+
     let alertTriggered = false;
     const dialogHandler = async (dialog) => {
       alertTriggered = true;
@@ -30,7 +36,7 @@ module.exports = async function runCriteria1(page, report) {
     alertTriggered = false;
     await titleInput.fill("");
     await amountInput.fill("10000");
-    await dateInput.fill("2026-05-31");
+    await dateInput.fill(dynamicDate);
     const isTitleHtml5Invalid = !(await titleInput.evaluate((el) =>
       el.checkValidity(),
     ));
@@ -59,14 +65,14 @@ module.exports = async function runCriteria1(page, report) {
 
     await titleInput.fill("Gaji Bulanan");
     await amountInput.fill("5000000");
-    await dateInput.fill("2026-05-31");
+    await dateInput.fill(dynamicDate);
     await typeSelect.selectOption("income");
     await submitBtn.click();
     await page.waitForTimeout(500);
 
     await titleInput.fill("Beli Makan");
     await amountInput.fill("50000");
-    await dateInput.fill("2026-05-31");
+    await dateInput.fill(dynamicDate);
     await typeSelect.selectOption("expense");
     await submitBtn.click();
     await page.waitForTimeout(500);
