@@ -46,9 +46,17 @@ module.exports = async function runCriteria2(page, report) {
       '[data-testid="transactionFormSubmitButton"]',
     );
 
-    const editBtns = page
+    let editBtns = page
       .locator('[data-testid="transactionItem"] button')
       .filter({ hasText: /edit|ubah/i });
+    if ((await editBtns.count()) === 0) {
+      editBtns = page
+        .locator(
+          '[data-testid="incomeList"] button, [data-testid="expenseList"] button',
+        )
+        .filter({ hasText: /edit/i });
+    }
+
     for (let i = 0; i < (await editBtns.count()); i++) {
       const btn = editBtns.nth(i);
       const btnText = await btn.innerText();
@@ -85,9 +93,18 @@ module.exports = async function runCriteria2(page, report) {
       }
     }
 
-    const deleteBtn = page
+    let deleteBtn = page
       .locator('[data-testid="transactionItemDeleteButton"]')
       .first();
+    if ((await deleteBtn.count()) === 0) {
+      deleteBtn = page
+        .locator(
+          '[data-testid="incomeList"] button, [data-testid="expenseList"] button',
+        )
+        .filter({ hasText: /hapus|delete/i })
+        .first();
+    }
+
     if ((await deleteBtn.count()) > 0 && (await deleteBtn.isVisible())) {
       await deleteBtn.click();
       await page.waitForTimeout(500);

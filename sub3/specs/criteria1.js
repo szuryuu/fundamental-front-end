@@ -79,18 +79,17 @@ module.exports = async function runCriteria1(page, report) {
     await submitBtn.click();
     await page.waitForTimeout(500);
 
-    const incomeItems = page.locator(
-      '[data-testid="incomeList"] [data-testid="transactionItem"]',
-    );
-    const expenseItems = page.locator(
-      '[data-testid="expenseList"] [data-testid="transactionItem"]',
-    );
+    const incomeList = page.locator('[data-testid="incomeList"]');
+    const expenseList = page.locator('[data-testid="expenseList"]');
 
-    if ((await incomeItems.count()) > 0 && (await expenseItems.count()) > 0) {
+    const incomeCount = await incomeList.locator(">*").count();
+    const expenseCount = await expenseList.locator(">*").count();
+
+    if (incomeCount > 0 && expenseCount > 0) {
       report.mandatory["Criteria 1 Basic: Render DOM & Lists"] = true;
 
-      const firstCard = incomeItems.first();
       const requiredTestIds = [
+        "transactionItem",
         "transactionItemTitle",
         "transactionItemAmount",
         "transactionItemDate",
@@ -102,7 +101,9 @@ module.exports = async function runCriteria1(page, report) {
       const missingIds = [];
 
       for (const tId of requiredTestIds) {
-        if ((await firstCard.locator(`[data-testid="${tId}"]`).count()) === 0) {
+        if (
+          (await incomeList.locator(`[data-testid="${tId}"]`).count()) === 0
+        ) {
           missingIds.push(tId);
         }
       }
