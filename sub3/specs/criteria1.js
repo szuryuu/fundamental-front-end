@@ -6,11 +6,13 @@ module.exports = async function runCriteria1(page, report) {
       `${colors.cyan}> Testing Criteria 1: DOM, Validation, & Dashboard...${colors.reset}`,
     );
 
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const dynamicDate = `${yyyy}-${mm}-${dd}`;
+    const dynamicDate = await page.evaluate(() => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    });
 
     let alertTriggered = false;
     const dialogHandler = async (dialog) => {
@@ -86,6 +88,30 @@ module.exports = async function runCriteria1(page, report) {
 
     if ((await incomeItems.count()) > 0 && (await expenseItems.count()) > 0) {
       report.mandatory["Criteria 1 Basic: Render DOM & Lists"] = true;
+
+      const firstCard = incomeItems.first();
+      const requiredTestIds = [
+        "transactionItemTitle",
+        "transactionItemAmount",
+        "transactionItemDate",
+        "transactionItemType",
+        "transactionItemEditTypeButton",
+        "transactionItemDeleteButton",
+      ];
+
+      const missingIds = [];
+
+      for (const tId of requiredTestIds) {
+        if ((await firstCard.locator(`[data-testid="${tId}"]`).count()) === 0) {
+          missingIds.push(tId);
+        }
+      }
+
+      if (missingIds.length > 0) {
+        const msg = `Elemen kartu transaksi kehilangan atribut data-testid: ${missingIds.join(", ")}`;
+        console.error(`${colors.red}  [-] REJECT: ${msg}${colors.reset}`);
+        report.rejected.push(msg);
+      }
     }
 
     const summaryText = await page
