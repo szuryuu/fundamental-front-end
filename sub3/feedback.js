@@ -83,7 +83,17 @@ function generateFeedback(report) {
   let feedbackBlocks = [];
   let cliHints = [];
 
-  if (report.rejected.length > 0) {
+  const m = report.mandatory;
+  const failedBasics = [];
+  if (m["Criteria 1 Basic: Render DOM & Lists"] === false)
+    failedBasics.push("C1");
+  if (m["Criteria 2 Basic: LocalStorage & Delete"] === false)
+    failedBasics.push("C2");
+  if (m["Criteria 3 Basic: Change Type"] === false) failedBasics.push("C3");
+
+  const isRejected = report.rejected.length > 0 || failedBasics.length > 0;
+
+  if (isRejected) {
     feedbackBlocks.push(
       "Halo! Terima kasih telah mengirimkan submission kamu. Logika kode yang kamu buat sudah sangat baik, namun submission ini harus dikembalikan (Reject) karena belum memenuhi beberapa kriteria wajib berikut:\n",
     );
@@ -111,6 +121,19 @@ function generateFeedback(report) {
       cliHints.push(`[Reject] ${shortTemplates.rejectLocalStorage}`);
     }
 
+    if (failedBasics.includes("C1")) {
+      feedbackBlocks.push(templates.c1Basic);
+      cliHints.push(`[Reject-C1] ${shortTemplates.c1Basic}`);
+    }
+    if (failedBasics.includes("C2") && !hasLocalStorageReject) {
+      feedbackBlocks.push(templates.c2Basic);
+      cliHints.push(`[Reject-C2] ${shortTemplates.c2Basic}`);
+    }
+    if (failedBasics.includes("C3")) {
+      feedbackBlocks.push(templates.c3Basic);
+      cliHints.push(`[Reject-C3] ${shortTemplates.c3Basic}`);
+    }
+
     feedbackBlocks.push(
       "\nSilakan perbaiki bagian tersebut dan kirimkan kembali submission kamu. Tetap semangat!",
     );
@@ -125,13 +148,9 @@ function generateFeedback(report) {
       cliHints.push(`[Pass] ${shortTemplates.passAll}`);
     } else {
       feedbackBlocks.push(
-        "Halo! Kerja yang bagus sejauh ini. Aplikasi kamu sudah berjalan, namun masih ada beberapa perbaikan yang perlu dilakukan agar memenuhi seluruh spesifikasi kriteria kelulusan Dicoding:\n",
+        "Halo! Kerja yang bagus sejauh ini. Aplikasi kamu sudah berjalan dengan baik untuk kriteria dasar, namun masih ada perbaikan fitur tambahan yang perlu disesuaikan (Opsional jika targetmu bintang 3, tapi disarankan diperbaiki jika mengincar bintang 4/5):\n",
       );
 
-      if (failedCriteria.includes("Criteria 1 Basic: Render DOM & Lists")) {
-        feedbackBlocks.push("- " + templates.c1Basic);
-        cliHints.push(`[C1-Basic] ${shortTemplates.c1Basic}`);
-      }
       if (failedCriteria.includes("Criteria 1 Skilled: Input Validation")) {
         feedbackBlocks.push("- " + templates.c1Skilled);
         cliHints.push(`[C1-Skilled] ${shortTemplates.c1Skilled}`);
@@ -139,10 +158,6 @@ function generateFeedback(report) {
       if (failedCriteria.includes("Criteria 1 Advanced: Dynamic Dashboard")) {
         feedbackBlocks.push("- " + templates.c1Advanced);
         cliHints.push(`[C1-Advanced] ${shortTemplates.c1Advanced}`);
-      }
-      if (failedCriteria.includes("Criteria 2 Basic: LocalStorage & Delete")) {
-        feedbackBlocks.push("- " + templates.c2Basic);
-        cliHints.push(`[C2-Basic] ${shortTemplates.c2Basic}`);
       }
       if (failedCriteria.includes("Criteria 2 Skilled: Edit Functionality")) {
         feedbackBlocks.push("- " + templates.c2Skilled);
@@ -153,10 +168,6 @@ function generateFeedback(report) {
       ) {
         feedbackBlocks.push("- " + templates.c2Advanced);
         cliHints.push(`[C2-Advanced] ${shortTemplates.c2Advanced}`);
-      }
-      if (failedCriteria.includes("Criteria 3 Basic: Change Type")) {
-        feedbackBlocks.push("- " + templates.c3Basic);
-        cliHints.push(`[C3-Basic] ${shortTemplates.c3Basic}`);
       }
       if (failedCriteria.includes("Criteria 3 Skilled: Search Filter")) {
         feedbackBlocks.push("- " + templates.c3Skilled);

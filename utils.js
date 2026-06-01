@@ -24,7 +24,9 @@ function printSummaryReport(report) {
     `${colors.bold}======================================================\n${colors.reset}`,
   );
 
-  if (report.rejected && report.rejected.length > 0) {
+  const hasReject = report.rejected && report.rejected.length > 0;
+
+  if (hasReject) {
     console.log(
       `${colors.red}${colors.bold} [!] SUBMISSION REJECTED - CRITICAL FAILURES [!]${colors.reset}`,
     );
@@ -57,6 +59,60 @@ function printSummaryReport(report) {
       `${colors.yellow}  (No optional criteria evaluated)${colors.reset}`,
     );
   }
+
+  const m = report.mandatory;
+  const isSub3 = Object.keys(m).some((k) => k.includes("Criteria 1 Basic"));
+  const totalPassed = Object.values(m).filter((v) => v === true).length;
+  const totalCriteria = Object.keys(m).length;
+  const score = Math.round((totalPassed / totalCriteria) * 100);
+
+  let stars = 0;
+  let statusText = "";
+  let statusColor = colors.red;
+
+  if (isSub3) {
+    const passedBasics =
+      m["Criteria 1 Basic: Render DOM & Lists"] === true &&
+      m["Criteria 2 Basic: LocalStorage & Delete"] === true &&
+      m["Criteria 3 Basic: Change Type"] === true;
+
+    if (hasReject || !passedBasics) {
+      stars = 0;
+      statusText = "REJECT (Kriteria dasar tidak terpenuhi / Ada fatal error)";
+      statusColor = colors.red;
+    } else if (totalPassed === 9) {
+      stars = 5;
+      statusText = "LULUS - Bintang 5 (Sempurna)";
+      statusColor = colors.cyan;
+    } else if (totalPassed >= 6) {
+      stars = 4;
+      statusText = "LULUS - Bintang 4 (Sangat Baik)";
+      statusColor = colors.green;
+    } else {
+      stars = 3;
+      statusText = "LULUS - Bintang 3 (Baik)";
+      statusColor = colors.yellow;
+    }
+  } else {
+    if (hasReject || totalPassed < totalCriteria) {
+      stars = 0;
+      statusText = "REJECT (Belum memenuhi standar minimum)";
+      statusColor = colors.red;
+    } else {
+      stars = 5;
+      statusText = "LULUS (Semua kriteria terpenuhi)";
+      statusColor = colors.green;
+    }
+  }
+
+  const starVisual = "⭐".repeat(stars) + "☆".repeat(5 - stars);
+
+  console.log(`\n${colors.bold} === PREDIKSI PENILAIAN ===${colors.reset}`);
+  console.log(`  Skor  : ${totalPassed} / ${totalCriteria} (${score}%)`);
+  console.log(`  Rating: ${statusColor}${starVisual}${colors.reset}`);
+  console.log(
+    `  Status: ${statusColor}${colors.bold}${statusText}${colors.reset}`,
+  );
 
   console.log(
     `\n${colors.cyan} [*] NOTE: Visual aesthetics, animation smoothness, and code plagiarism still require human verification.${colors.reset}`,
